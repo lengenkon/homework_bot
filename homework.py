@@ -51,7 +51,6 @@ def send_message(bot, message):
 def check_tokens():
     """Проверяет доступность переменных окружения."""
     for env in (TELEGRAM_CHAT_ID, PRACTICUM_TOKEN, TELEGRAM_CHAT_ID):
-        print(env)
         if env is None:
             message = (
                 f'Отсутствует обязательная переменная окружения {env}.'
@@ -97,14 +96,13 @@ def check_response(response):
         raise KeyError('Отсутствуют ключи в ответе')
     if not isinstance(response['homeworks'], list):
         raise TypeError('Ожидается список')
-    homework = response['homeworks'][0]
     if (
         response['homeworks'] != [] and (
-            'homework_name' not in homework or 'status' not in homework
+            'homework_name' not in response['homeworks'][0]
+            or 'status' not in response['homeworks'][0]
         )
     ):
         raise KeyError('Отсутствуют ключи')
-    return response['homeworks'][0]
 
 
 def parse_status(homework):
@@ -129,20 +127,24 @@ def main():
     check_tokens()
     bot = Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
+    # timestamp = 0
     old_status = ''
 
     while True:
         try:
             response = get_api_answer(timestamp)
-            homework = check_response(response)
-            new_status = homework.get('status')
-            print(new_status)
-            if new_status != old_status:
-                send_message(bot, parse_status(homework))
-                old_status = new_status
+            check_response(response)
+            if response['homeworks'] != []:
+                homework = response['homeworks'][0]
+                new_status = homework.get('status')
+                if new_status != old_status:
+                    send_message(bot, parse_status(homework))
+                    old_status = new_status
+                else:
+                    logger.debug('Нет новых статусов')
+                timestamp = response.get('current_date')
             else:
-                logger.debug('Нет новых статусов')
-            timestamp = response.get('current_date')
+                logger.info('Нет домашних работ за этот период')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)

@@ -26,12 +26,9 @@ HOMEWORK_VERDICTS = {
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(message)s"
 )
-
 handler = logging.StreamHandler(stream=sys.stdout)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -44,7 +41,6 @@ def send_message(bot, message):
         logger.debug(f'Бот отправил сообщение: {message}')
     except Exception as error:
         message = f'Сбой в отправке сообщения с ошибкой {error}'
-        # logger.error(error, exc_info=True)
         logger.error(message)
 
 
@@ -76,6 +72,7 @@ def get_api_answer(timestamp):
             message = (
                 f'Эндпоинт {ENDPOINT} недоступен. '
                 f'Код ответа API: {status_code}.'
+                f'Ошибка: {response.text}'
             )
             logger.error(message)
             raise Exception(message)
@@ -91,18 +88,14 @@ def check_response(response):
     if response is None:
         raise Exception('Ответ не получен')
     if not isinstance(response, dict):
-        raise TypeError('Ожидается словарь')
+        raise TypeError(f'Ожидается словарь, получен {type(response)}')
     if 'homeworks' not in response or 'current_date' not in response:
-        raise KeyError('Отсутствуют ключи в ответе')
+        raise KeyError("Отсутствуют ключи 'homeworks,current_date' в ответе")
     if not isinstance(response['homeworks'], list):
-        raise TypeError('Ожидается список')
-    if (
-        response['homeworks'] != [] and (
-            'homework_name' not in response['homeworks'][0]
-            or 'status' not in response['homeworks'][0]
+        raise TypeError(
+            f'Ожидается список, получен {type(response["homeworks"])}'
         )
-    ):
-        raise KeyError('Отсутствуют ключи')
+    return response.get('homeworks')
 
 
 def parse_status(homework):
@@ -110,13 +103,14 @@ def parse_status(homework):
     В случае успеха, функция возвращает подготовленную для отправки в Telegram
     строку, содержащую один из вердиктов словаря.
     """
+    if 'status' not in homework:
+        raise KeyError('Нет такого ключа "status"')
     status = homework.get('status')
-    homework_name = homework.get('homework_name')
     if 'homework_name' not in homework:
-        raise Exception('Нет такого ключа')
-    if status not in HOMEWORK_VERDICTS.keys() or 'status' not in homework:
-        # logger.error('Неожиданный статус домашней работы')
-        raise Exception('Нет такого статуса')
+        raise KeyError('Нет такого ключа "homework_name"')
+    homework_name = homework.get('homework_name')
+    if status not in HOMEWORK_VERDICTS:
+        raise Exception(f'Неожиданный статус - {status}')
     else:
         verdict = HOMEWORK_VERDICTS.get(status)
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
@@ -127,24 +121,19 @@ def main():
     check_tokens()
     bot = Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    # timestamp = 0
     old_status = ''
-
     while True:
         try:
             response = get_api_answer(timestamp)
-            check_response(response)
-            if response['homeworks'] != []:
-                homework = response['homeworks'][0]
-                new_status = homework.get('status')
+            homeworks = check_response(response)
+            if homeworks:
+                new_status = homeworks[0].get('status')
                 if new_status != old_status:
-                    send_message(bot, parse_status(homework))
+                    send_message(bot, parse_status(homeworks[0]))
                     old_status = new_status
                 else:
                     logger.debug('Нет новых статусов')
-                timestamp = response.get('current_date')
-            else:
-                logger.info('Нет домашних работ за этот период')
+            timestamp = response.get('current_date')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)

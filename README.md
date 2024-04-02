@@ -1,2 +1,14 @@
-# homework_bot
-python telegram bot
+# homework_bot - python telegram bot
+
+Telegram-Бот следит за проверкой домашней работы в ЯндексПрактикуме и осведомляет, если изменился статус: взята ли ваша домашка в ревью, проверена ли она, а если проверена — то принял её ревьюер или вернул на доработку либо возникли проблемы.
+
+**Технологии**
+
++ python
++ logging
++ python-telegram-bot
++ dotenv
+
+**Автор**
+
+https://github.com/lengenkon
